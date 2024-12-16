@@ -2,6 +2,9 @@
   "name": "bun",
   "module": "app.ts",
   "type": "module",
+  "scripts": {
+    "dev": "bun run src/app.ts"
+  },
   "devDependencies": {
     "@flydotio/dockerfile": "latest",
     "bun-types": "latest"

@@ -1,6 +1,6 @@
 
 import WebSocket from 'ws';
-import { backfillUserIfNecessary, createRecord, getLatestTimestamp, MainRecord, setLatestTimestamp } from './database';
+import { backfillUserIfNecessary, createRecord, dropAllTables, getLatestTimestamp, MainRecord, setLatestTimestamp } from './database';
 import { getFormattedDetails } from './tmdb';
 import { getProfile } from './atp';
 
@@ -129,13 +129,13 @@ function reconnectWebSocket(delay = 5000) {
 
 export async function startJetstream() {	
 	const nowMS = Date.now();
-    const twentyFourHoursAgoMS =
-        nowMS - 24 * 60 * 60 * 1000;
+    const oneMinuteAgoMS =
+        nowMS - 1 * 60 * 1000;
 
     let lastTimestamp = await getLatestTimestamp();
 	console.log('Last timestamp:', lastTimestamp);
 
-	const currentStartTime = lastTimestamp ? new Date(lastTimestamp) : new Date(twentyFourHoursAgoMS);
+	const currentStartTime = lastTimestamp ? new Date(lastTimestamp) : new Date(oneMinuteAgoMS);
 
 	console.log('Using timestamp');
 	printTimestamp(currentStartTime.getTime() * 1000);

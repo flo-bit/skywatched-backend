@@ -1,8 +1,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Database, SQLQueryBindings } from 'bun:sqlite';
-import { AtpBaseClient } from '@atproto/api';
-import { getDetails, getFormattedDetails } from './tmdb';
+import { getFormattedDetails } from './tmdb';
 import { getAllRated, getProfile } from './atp';
 
 const litefsDir = process.env.NODE_ENV === 'production' ? '/var/lib/litefs' : './litefs';
@@ -56,6 +55,9 @@ type MainRecord = {
     };
     crosspost?: {
       uri: string;
+      likes?: number;
+      reposts?: number;
+      replies?: number;
     };
   }
 };
@@ -93,69 +95,88 @@ type Record = {
   record_metadata_release_date?: string;
 
   record_crosspost_uri?: string;
+  record_crosspost_likes?: number;
+  record_crosspost_reposts?: number;
+  record_crosspost_replies?: number;
 };
 
 function createTables() {
-db.run(`
-  CREATE TABLE IF NOT EXISTS records (
-    uri TEXT PRIMARY KEY,
-    cid TEXT NOT NULL,
+  db.run(`
+    CREATE TABLE IF NOT EXISTS records (
+      uri TEXT PRIMARY KEY,
+      cid TEXT NOT NULL,
 
-    author_did TEXT NOT NULL,
-    author_handle TEXT NOT NULL,
-    author_displayName TEXT NOT NULL,
-    author_avatar TEXT NOT NULL,
+      author_did TEXT NOT NULL,
+      author_handle TEXT NOT NULL,
+      author_displayName TEXT,
+      author_avatar TEXT,
 
-    indexedAt TEXT NOT NULL,
-    createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL,
+      indexedAt TEXT NOT NULL,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL,
 
-    record_type TEXT NOT NULL,
-    record_item_ref TEXT NOT NULL,
-    record_item_value TEXT NOT NULL,
+      record_type TEXT NOT NULL,
+      record_item_ref TEXT NOT NULL,
+      record_item_value TEXT NOT NULL,
 
-    record_note_value TEXT,
-    record_note_createdAt TEXT,
-    record_note_updatedAt TEXT,
+      record_note_value TEXT,
+      record_note_createdAt TEXT,
+      record_note_updatedAt TEXT,
 
-    record_rating_value INTEGER,
-    record_rating_createdAt TEXT,
+      record_rating_value INTEGER,
+      record_rating_createdAt TEXT,
 
-    record_metadata_title TEXT,
-    record_metadata_poster_path TEXT,
-    record_metadata_backdrop_path TEXT,
-    record_metadata_tagline TEXT,
-    record_metadata_overview TEXT,
-    record_metadata_genres TEXT,
-    record_metadata_release_date TEXT,
+      record_metadata_title TEXT,
+      record_metadata_poster_path TEXT,
+      record_metadata_backdrop_path TEXT,
+      record_metadata_tagline TEXT,
+      record_metadata_overview TEXT,
+      record_metadata_genres TEXT,
+      record_metadata_release_date TEXT,
 
-    record_crosspost_uri TEXT
-  );
+      record_crosspost_uri TEXT,
+      record_crosspost_likes INTEGER,
+      record_crosspost_reposts INTEGER,
+      record_crosspost_replies INTEGER
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_author_did ON records (author_did);
-  CREATE INDEX IF NOT EXISTS idx_indexedAt ON records (indexedAt);
-  CREATE INDEX IF NOT EXISTS idx_createdAt ON records (createdAt);
-  CREATE INDEX IF NOT EXISTS idx_updatedAt ON records (updatedAt);
-  CREATE INDEX IF NOT EXISTS idx_item_ref_value ON records (record_item_ref, record_item_value);
-`);
+    CREATE INDEX IF NOT EXISTS idx_uri ON records (uri);
+    CREATE INDEX IF NOT EXISTS idx_author_did ON records (author_did);
+    CREATE INDEX IF NOT EXISTS idx_indexedAt ON records (indexedAt);
+    CREATE INDEX IF NOT EXISTS idx_createdAt ON records (createdAt);
+    CREATE INDEX IF NOT EXISTS idx_updatedAt ON records (updatedAt);
+    CREATE INDEX IF NOT EXISTS idx_item_ref_value ON records (record_item_ref, record_item_value);
+    CREATE INDEX IF NOT EXISTS idx_crosspost_uri ON records (record_crosspost_uri);
+  `);
 
-db.run(`
-  CREATE TABLE IF NOT EXISTS latest_indexedAt (
-    indexedAt TEXT PRIMARY KEY
-  );
+  db.run(`
+    CREATE TABLE IF NOT EXISTS latest_indexedAt (
+      indexedAt TEXT PRIMARY KEY
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_indexedAt ON latest_indexedAt (indexedAt);
-`);
+    CREATE INDEX IF NOT EXISTS idx_indexedAt ON latest_indexedAt (indexedAt);
+  `);
 }
 
 // Function to get the latest timestamp (either creation or update)
 export function getLatestTimestamp(): string | null {
   const row = db.query('SELECT MAX(indexedAt) AS latest FROM latest_indexedAt;').get() as { latest: string } | undefined;
-  return row?.latest || null;
+  return row?.latest ?? null;
 }
 
 export function setLatestTimestamp(indexedAt: string): void {
+  db.query('DELETE FROM latest_indexedAt').run();
   db.query('INSERT OR REPLACE INTO latest_indexedAt (indexedAt) VALUES (?)').run(indexedAt);
+}
+
+export function getRecord(uri: string): MainRecord | null {
+  const row = db.query('SELECT * FROM records WHERE uri = ?').get(uri) as Record | undefined;
+  return row ? transformRecord(row) : null;
+}
+
+export function getAuthorDids(): string[] {
+  const rows = db.query('SELECT DISTINCT author_did FROM records').all() as { author_did: string }[];
+  return rows.map(row => row.author_did);
 }
 
 export function createRecord(record: MainRecord): void {
@@ -177,8 +198,8 @@ export function createRecord(record: MainRecord): void {
       
       record_metadata_title, record_metadata_poster_path, record_metadata_backdrop_path, record_metadata_tagline, record_metadata_overview, record_metadata_genres, record_metadata_release_date,
       
-      record_crosspost_uri
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+      record_crosspost_uri, record_crosspost_likes, record_crosspost_reposts, record_crosspost_replies
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `;
   const params = [
       record.uri, record.cid,
@@ -193,7 +214,10 @@ export function createRecord(record: MainRecord): void {
       record.record.metadata?.tagline ?? null, record.record.metadata?.overview ?? null, record.record.metadata?.genres?.join(',') ?? null, 
       record.record.metadata?.release_date ?? null,
 
-      record.record.crosspost?.uri ?? null
+      record.record.crosspost?.uri ?? null,
+      record.record.crosspost?.likes ?? null,
+      record.record.crosspost?.reposts ?? null,
+      record.record.crosspost?.replies ?? null
   ];
   db.query(sql).run(...params as SQLQueryBindings[]);
 }
@@ -319,39 +343,39 @@ export function dropAllTables() {
 
 export async function backfillUserIfNecessary(did: string): Promise<void> {
   // check if at least one record exists for this user
-  const records = await getRecentRecordsByUser(did, 1);
-  if(records.length === 0) {
-    const items = await getAllRated({ did });
-    const profile = await getProfile({ did });
-    
-    for(const item of items) {
-      if(item.value.item.ref !== 'tmdb:s' && item.value.item.ref !== 'tmdb:m') {
-        continue;
-      }
+  const records = getRecentRecordsByUser(did, 1);
+  if(records.length !== 0) return;
 
-      const metadata = await getFormattedDetails(item.value.item.value, item.value.item.ref);
-
-      createRecord({
-        uri: item.uri,
-        cid: item.cid,
-        author: {
-          did: did,
-          handle: profile.handle,
-          displayName: profile.displayName,
-          avatar: profile.avatar,
-        },
-        indexedAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
-        createdAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
-        updatedAt: item.value.note?.updatedAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
-        record: {
-          $type: item.value.$type,
-          item: item.value.item,
-          rating: item.value.rating,
-          note: item.value.note,
-          metadata,
-        }
-      });
+  const items = await getAllRated({ did });
+  const profile = await getProfile({ did });
+  
+  for(const item of items) {
+    if(item.value.item.ref !== 'tmdb:s' && item.value.item.ref !== 'tmdb:m') {
+      continue;
     }
+
+    const metadata = await getFormattedDetails(item.value.item.value, item.value.item.ref);
+
+    createRecord({
+      uri: item.uri,
+      cid: item.cid,
+      author: {
+        did: did,
+        handle: profile.handle,
+        displayName: profile.displayName,
+        avatar: profile.avatar,
+      },
+      indexedAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
+      createdAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
+      updatedAt: item.value.note?.updatedAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
+      record: {
+        $type: item.value.$type,
+        item: item.value.item,
+        rating: item.value.rating,
+        note: item.value.note,
+        metadata,
+      }
+    });
   }
 }
 
