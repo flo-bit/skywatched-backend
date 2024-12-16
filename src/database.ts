@@ -328,6 +328,11 @@ export function getRecentRecordsByItemRef(item_ref: string, item_value: string, 
 //   db.query(sql).run(uri);
 // }
 
+export function deleteAllByUser(user_did: string): void {
+  const sql = 'DELETE FROM records WHERE author_did = ?';
+  db.query(sql).run(user_did);
+}
+
 export function deleteAllRecords(): void {
   const sql = 'DELETE FROM records';
   db.query(sql).run();

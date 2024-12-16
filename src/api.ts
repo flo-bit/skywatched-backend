@@ -1,5 +1,5 @@
 // server.ts
-import { backfillUserIfNecessary, getAuthorDids, getLatestTimestamp, getMostRecentRecords, getRecentRecordsByItemRef, getRecentRecordsByUser, getRecord } from './database';
+import { backfillUserIfNecessary, deleteAllByUser, getAuthorDids, getLatestTimestamp, getMostRecentRecords, getRecentRecordsByItemRef, getRecentRecordsByUser, getRecord } from './database';
 
 // Define your API routes and handlers
 export const handler = async (req: Request): Promise<Response> => {
@@ -63,6 +63,16 @@ export const handler = async (req: Request): Promise<Response> => {
         if(path === "/api/author-dids") {
           const author_dids = getAuthorDids();
           return new Response(JSON.stringify(author_dids), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+
+        if(path === "/api/refresh-user") {
+          const did = url.searchParams.get("did");
+          if (!did) {
+            return new Response(JSON.stringify({ error: "did is required" }), { status: 400, headers: { "Content-Type": "application/json" } });
+          }
+          deleteAllByUser(did);
+          await backfillUserIfNecessary(did);
+          return new Response(JSON.stringify({ success: true }), { status: 200, headers: { "Content-Type": "application/json" } });
         }
       }
 

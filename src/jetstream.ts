@@ -1,8 +1,9 @@
 
 import WebSocket from 'ws';
-import { backfillUserIfNecessary, createRecord, dropAllTables, getLatestTimestamp, MainRecord, setLatestTimestamp } from './database';
+import { backfillUserIfNecessary, createRecord, getLatestTimestamp, MainRecord, setLatestTimestamp } from './database';
 import { getFormattedDetails } from './tmdb';
 import { getProfile } from './atp';
+// import fs from 'fs';
 
 function printTimestamp(timestamp: number) {
     const time = new Date(timestamp / 1_000).toISOString();
@@ -33,6 +34,14 @@ function startWebSocket(cursor: number) {
 
 		if(json.kind === 'commit' && json.commit.collection === 'my.skylights.rel' && json.commit.operation === 'create') {
 			saveToDatabase(json);
+
+			// // create file if it doesn't exist
+			// if(!fs.existsSync('jetstream.json')) {
+			// 	fs.writeFileSync('jetstream.json', '');
+			// }
+
+			// // write to file for debugging
+			// fs.appendFileSync('jetstream.json', JSON.stringify(json, null, 2));
 		}
 
 		if(!lastPrintedTimestamp || lastPrintedTimestamp < json.time_us - secondsToMicroseconds(60)) {
@@ -137,8 +146,9 @@ export async function startJetstream() {
 
 	const currentStartTime = lastTimestamp ? new Date(lastTimestamp) : new Date(oneMinuteAgoMS);
 
-	console.log('Using timestamp');
-	printTimestamp(currentStartTime.getTime() * 1000);
+	currentTimestamp = currentStartTime.getTime() * 1000;
+	console.log('Using timestamp', currentTimestamp);
+	printTimestamp(currentTimestamp);
 
-	startWebSocket(currentStartTime.getTime() * 1000);
+	startWebSocket(currentTimestamp);
 } 
