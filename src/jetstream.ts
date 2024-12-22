@@ -1,9 +1,8 @@
 
 import WebSocket from 'ws';
-import { backfillUserIfNecessary, createRecord, getLatestTimestamp, MainRecord, setLatestTimestamp } from './database';
+import { backfillUserIfNecessary, createRecord, recreateTables, getLatestTimestamp, MainRecord, saveLikeToDatabase, setLatestTimestamp } from './database';
 import { getFormattedDetails } from './tmdb';
 import { getProfile } from './atp';
-// import fs from 'fs';
 
 function printTimestamp(timestamp: number) {
     const time = new Date(timestamp / 1_000).toISOString();
@@ -20,7 +19,7 @@ let lastPrintedTimestamp: number = 0;
 
 // Function to start the WebSocket connection
 function startWebSocket(cursor: number) {
-    const url = `wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=my.skylights.rel&cursor=${cursor}`;
+    const url = `wss://jetstream2.us-east.bsky.network/subscribe?wantedCollections=my.skylights.rel&wantedCollections=community.lexicon.interaction.like&cursor=${cursor}`;
 
     const ws = new WebSocket(url);
 
@@ -33,15 +32,11 @@ function startWebSocket(cursor: number) {
         const json = JSON.parse(data.toString());
 
 		if(json.kind === 'commit' && json.commit.collection === 'my.skylights.rel' && json.commit.operation === 'create') {
-			saveToDatabase(json);
+			saveRatingToDatabase(json);
+		}
 
-			// // create file if it doesn't exist
-			// if(!fs.existsSync('jetstream.json')) {
-			// 	fs.writeFileSync('jetstream.json', '');
-			// }
-
-			// // write to file for debugging
-			// fs.appendFileSync('jetstream.json', JSON.stringify(json, null, 2));
+		if(json.kind === 'commit' && json.commit.collection === 'community.lexicon.interaction.like' && json.commit.operation === 'create') {			
+			saveLike(json);
 		}
 
 		if(!lastPrintedTimestamp || lastPrintedTimestamp < json.time_us - secondsToMicroseconds(60)) {
@@ -63,7 +58,7 @@ function startWebSocket(cursor: number) {
     };
 }
 
-async function saveToDatabase(json: any) {
+async function saveRatingToDatabase(json: any) {
 	if(json.commit.record.item.ref !== 'tmdb:s' && json.commit.record.item.ref !== 'tmdb:m') {
 		return;
 	}
@@ -127,6 +122,25 @@ async function saveToDatabase(json: any) {
 	}
 }
 
+async function saveLike(json: any) {
+	// get uri
+	const uri = json.commit.record.subject.uri;
+	// split into did, collection, rkey
+	const [did, collection, rkey] = uri.replace('at://', '').split('/');
+
+	if(collection !== 'my.skylights.rel') return;
+
+	// make sure we have the post that is being liked
+	await backfillUserIfNecessary(did);
+
+	saveLikeToDatabase({
+		author_did: json.did,
+		subject_cid: json.commit.record.subject.cid,
+		subject_uri: json.commit.record.subject.uri,
+		createdAt: json.commit.record.createdAt,
+	});
+}
+
 // Function to reconnect WebSocket with an optional delay
 function reconnectWebSocket(delay = 5000) {
     console.log(`Reconnecting WebSocket in ${delay / 1000} seconds...`);
@@ -136,7 +150,7 @@ function reconnectWebSocket(delay = 5000) {
 }
 
 
-export async function startJetstream() {	
+export async function startJetstream() {
 	const nowMS = Date.now();
     const oneMinuteAgoMS =
         nowMS - 1 * 60 * 1000;

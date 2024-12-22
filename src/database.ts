@@ -59,6 +59,8 @@ type MainRecord = {
       reposts?: number;
       replies?: number;
     };
+
+    likes?: number;
   }
 };
 
@@ -98,6 +100,16 @@ type Record = {
   record_crosspost_likes?: number;
   record_crosspost_reposts?: number;
   record_crosspost_replies?: number;
+
+  record_likes?: number;
+};
+
+type LikeRecord = {
+  uri: string;
+  author_did: string;
+  subject_cid: string;
+  subject_uri: string;
+  createdAt: string;
 };
 
 function createTables() {
@@ -137,7 +149,9 @@ function createTables() {
       record_crosspost_uri TEXT,
       record_crosspost_likes INTEGER,
       record_crosspost_reposts INTEGER,
-      record_crosspost_replies INTEGER
+      record_crosspost_replies INTEGER,
+
+      record_likes INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_uri ON records (uri);
@@ -147,6 +161,7 @@ function createTables() {
     CREATE INDEX IF NOT EXISTS idx_updatedAt ON records (updatedAt);
     CREATE INDEX IF NOT EXISTS idx_item_ref_value ON records (record_item_ref, record_item_value);
     CREATE INDEX IF NOT EXISTS idx_crosspost_uri ON records (record_crosspost_uri);
+    CREATE INDEX IF NOT EXISTS idx_likes ON records (record_likes);
   `);
 
   db.run(`
@@ -155,6 +170,21 @@ function createTables() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_indexedAt ON latest_indexedAt (indexedAt);
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS likes (
+      uri TEXT PRIMARY KEY,
+      author_did TEXT NOT NULL,
+      subject_cid TEXT NOT NULL,
+      subject_uri TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_uri ON likes (uri);
+    CREATE INDEX IF NOT EXISTS idx_author_did ON likes (author_did);
+    CREATE INDEX IF NOT EXISTS idx_subject_uri ON likes (subject_uri);
+    CREATE INDEX IF NOT EXISTS idx_createdAt ON likes (createdAt);
   `);
 }
 
@@ -258,7 +288,8 @@ export function transformRecord(record: Record): MainRecord {
         overview: record.record_metadata_overview ?? '',
         genres: record.record_metadata_genres?.split(',') ?? [],
         release_date: record.record_metadata_release_date ?? '',
-      }
+      },
+      likes: record.record_likes ?? 0,
     }
   };
 }
@@ -338,9 +369,10 @@ export function deleteAllRecords(): void {
   db.query(sql).run();
 }
 
-export function dropAllTables() {
+export function recreateTables() {
   db.run('DROP TABLE IF EXISTS records');
   db.run('DROP TABLE IF EXISTS latest_indexedAt');
+  db.run('DROP TABLE IF EXISTS likes');
 
   // create the tables again
   createTables();
@@ -382,6 +414,24 @@ export async function backfillUserIfNecessary(did: string): Promise<void> {
       }
     });
   }
+}
+
+export async function saveLikeToDatabase(json: LikeRecord) {
+  // first check if the like already exists
+  const existingLike = db.query('SELECT * FROM likes WHERE author_did = ? AND subject_uri = ?').get(json.author_did, json.subject_uri);
+  if(existingLike) return;
+
+  // check if the record exists
+  const record = getRecord(json.subject_uri);
+  if(!record) return;
+
+  // save the like to the database
+  const sql = 'INSERT INTO likes (uri, author_did, subject_cid, subject_uri, createdAt) VALUES (?, ?, ?, ?, ?)';
+  db.query(sql).run(json.uri, json.author_did, json.subject_cid, json.subject_uri, json.createdAt);
+
+  // update the record with the new like count
+  const newLikes = record.record.likes ? record.record.likes + 1 : 1;
+  db.query('UPDATE records SET record_likes = ? WHERE uri = ?').run(newLikes, json.subject_uri);
 }
 
 export { db, MainRecord };
