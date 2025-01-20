@@ -1,6 +1,12 @@
 
 import WebSocket from 'ws';
-import { backfillUserIfNecessary, createRecord, recreateTables, getLatestTimestamp, MainRecord, saveLikeToDatabase, setLatestTimestamp } from './database';
+import {
+  backfillUserIfNecessary,
+  createRecord,
+  recreateTables,
+  MainRecord,
+  saveLikeToDatabase,
+} from "./database";
 import { getFormattedDetails } from './tmdb';
 import { getProfile } from './atp';
 
@@ -35,9 +41,9 @@ function startWebSocket(cursor: number) {
 			saveRatingToDatabase(json);
 		}
 
-		if(json.kind === 'commit' && json.commit.collection === 'community.lexicon.interaction.like' && json.commit.operation === 'create') {			
-			saveLike(json);
-		}
+		if(json.kind === 'commit' && json.commit.collection === 'community.lexicon.interaction.like' && json.commit.operation === 'create') {
+      // saveLike(json);
+    }
 
 		if(!lastPrintedTimestamp || lastPrintedTimestamp < json.time_us - secondsToMicroseconds(60)) {
 			lastPrintedTimestamp = json.time_us;
@@ -122,24 +128,24 @@ async function saveRatingToDatabase(json: any) {
 	}
 }
 
-async function saveLike(json: any) {
-	// get uri
-	const uri = json.commit.record.subject.uri;
-	// split into did, collection, rkey
-	const [did, collection, rkey] = uri.replace('at://', '').split('/');
+// async function saveLike(json: any) {
+// 	// get uri
+// 	const uri = json.commit.record.subject.uri;
+// 	// split into did, collection, rkey
+// 	const [did, collection, rkey] = uri.replace('at://', '').split('/');
 
-	if(collection !== 'my.skylights.rel') return;
+// 	if(collection !== 'my.skylights.rel') return;
 
-	// make sure we have the post that is being liked
-	await backfillUserIfNecessary(did);
+// 	// make sure we have the post that is being liked
+// 	await backfillUserIfNecessary(did);
 
-	saveLikeToDatabase({
-		author_did: json.did,
-		subject_cid: json.commit.record.subject.cid,
-		subject_uri: json.commit.record.subject.uri,
-		createdAt: json.commit.record.createdAt,
-	});
-}
+// 	saveLikeToDatabase({
+// 		author_did: json.did,
+// 		subject_cid: json.commit.record.subject.cid,
+// 		subject_uri: json.commit.record.subject.uri,
+// 		createdAt: json.commit.record.createdAt,
+// 	});
+// }
 
 // Function to reconnect WebSocket with an optional delay
 function reconnectWebSocket(delay = 5000) {
