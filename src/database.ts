@@ -104,13 +104,6 @@ type Record = {
   record_likes?: number;
 };
 
-type LikeRecord = {
-  uri: string;
-  author_did: string;
-  subject_cid: string;
-  subject_uri: string;
-  createdAt: string;
-};
 
 function createTables() {
   db.run(`
@@ -190,23 +183,31 @@ function createTables() {
 
 // Function to get the latest timestamp (either creation or update)
 export function getLatestTimestamp(): string | null {
-  const row = db.query('SELECT MAX(indexedAt) AS latest FROM latest_indexedAt;').get() as { latest: string } | undefined;
+  const row = db
+    .query("SELECT MAX(indexedAt) AS latest FROM latest_indexedAt;")
+    .get() as { latest: string } | undefined;
   return row?.latest ?? null;
 }
 
 export function setLatestTimestamp(indexedAt: string): void {
-  db.query('DELETE FROM latest_indexedAt').run();
-  db.query('INSERT OR REPLACE INTO latest_indexedAt (indexedAt) VALUES (?)').run(indexedAt);
+  db.query("DELETE FROM latest_indexedAt").run();
+  db.query(
+    "INSERT OR REPLACE INTO latest_indexedAt (indexedAt) VALUES (?)"
+  ).run(indexedAt);
 }
 
 export function getRecord(uri: string): MainRecord | null {
-  const row = db.query('SELECT * FROM records WHERE uri = ?').get(uri) as Record | undefined;
+  const row = db.query("SELECT * FROM records WHERE uri = ?").get(uri) as
+    | Record
+    | undefined;
   return row ? transformRecord(row) : null;
 }
 
 export function getAuthorDids(): string[] {
-  const rows = db.query('SELECT DISTINCT author_did FROM records').all() as { author_did: string }[];
-  return rows.map(row => row.author_did);
+  const rows = db.query("SELECT DISTINCT author_did FROM records").all() as {
+    author_did: string;
+  }[];
+  return rows.map((row) => row.author_did);
 }
 
 export function createRecord(record: MainRecord): void {
@@ -232,24 +233,38 @@ export function createRecord(record: MainRecord): void {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
   `;
   const params = [
-      record.uri, record.cid,
-      record.author.did, record.author.handle, record.author.displayName, record.author.avatar,
-      record.indexedAt, record.createdAt, record.updatedAt,
-      record.record.$type,
-      record.record.item.ref, record.record.item.value,
-      record.record.note?.value ?? null, record.record.note?.createdAt ?? null, record.record.note?.updatedAt ?? null,
-      record.record.rating?.value ?? null, record.record.rating?.createdAt ?? null,
+    record.uri,
+    record.cid,
+    record.author.did,
+    record.author.handle,
+    record.author.displayName,
+    record.author.avatar,
+    record.indexedAt,
+    record.createdAt,
+    record.updatedAt,
+    record.record.$type,
+    record.record.item.ref,
+    record.record.item.value,
+    record.record.note?.value ?? null,
+    record.record.note?.createdAt ?? null,
+    record.record.note?.updatedAt ?? null,
+    record.record.rating?.value ?? null,
+    record.record.rating?.createdAt ?? null,
 
-      record.record.metadata?.title ?? null, record.record.metadata?.poster_path ?? null, record.record.metadata?.backdrop_path ?? null, 
-      record.record.metadata?.tagline ?? null, record.record.metadata?.overview ?? null, record.record.metadata?.genres?.join(',') ?? null, 
-      record.record.metadata?.release_date ?? null,
+    record.record.metadata?.title ?? null,
+    record.record.metadata?.poster_path ?? null,
+    record.record.metadata?.backdrop_path ?? null,
+    record.record.metadata?.tagline ?? null,
+    record.record.metadata?.overview ?? null,
+    record.record.metadata?.genres?.join(",") ?? null,
+    record.record.metadata?.release_date ?? null,
 
-      record.record.crosspost?.uri ?? null,
-      record.record.crosspost?.likes ?? null,
-      record.record.crosspost?.reposts ?? null,
-      record.record.crosspost?.replies ?? null
+    record.record.crosspost?.uri ?? null,
+    record.record.crosspost?.likes ?? null,
+    record.record.crosspost?.reposts ?? null,
+    record.record.crosspost?.replies ?? null,
   ];
-  db.query(sql).run(...params as SQLQueryBindings[]);
+  db.query(sql).run(...(params as SQLQueryBindings[]));
 }
 
 export function transformRecord(record: Record): MainRecord {
@@ -271,44 +286,52 @@ export function transformRecord(record: Record): MainRecord {
         ref: record.record_item_ref,
         value: record.record_item_value,
       },
-      note: record.record_note_value ? {
-        value: record.record_note_value,
-        createdAt: record.record_note_createdAt ?? new Date().toISOString(),
-        updatedAt: record.record_note_updatedAt ?? new Date().toISOString(),
-      } : undefined,
-      rating: record.record_rating_value ? {
-        value: record.record_rating_value,
-        createdAt: record.record_rating_createdAt ?? new Date().toISOString(),
-      } : undefined,
+      note: record.record_note_value
+        ? {
+            value: record.record_note_value,
+            createdAt: record.record_note_createdAt ?? new Date().toISOString(),
+            updatedAt: record.record_note_updatedAt ?? new Date().toISOString(),
+          }
+        : undefined,
+      rating: record.record_rating_value
+        ? {
+            value: record.record_rating_value,
+            createdAt:
+              record.record_rating_createdAt ?? new Date().toISOString(),
+          }
+        : undefined,
       metadata: {
-        title: record.record_metadata_title ?? '',
-        poster_path: record.record_metadata_poster_path ?? '',
-        backdrop_path: record.record_metadata_backdrop_path ?? '',
-        tagline: record.record_metadata_tagline ?? '',
-        overview: record.record_metadata_overview ?? '',
-        genres: record.record_metadata_genres?.split(',') ?? [],
-        release_date: record.record_metadata_release_date ?? '',
+        title: record.record_metadata_title ?? "",
+        poster_path: record.record_metadata_poster_path ?? "",
+        backdrop_path: record.record_metadata_backdrop_path ?? "",
+        tagline: record.record_metadata_tagline ?? "",
+        overview: record.record_metadata_overview ?? "",
+        genres: record.record_metadata_genres?.split(",") ?? [],
+        release_date: record.record_metadata_release_date ?? "",
       },
       likes: record.record_likes ?? 0,
-    }
+    },
   };
 }
 
 // Function to get the most recent created records with pagination
-export function getMostRecentRecords(limit: number = 100, cursor: string | null = null): MainRecord[] {
-  let sql = 'SELECT * FROM records WHERE 1=1';
+export function getMostRecentRecords(
+  limit: number = 100,
+  cursor: string | null = null
+): MainRecord[] {
+  let sql = "SELECT * FROM records WHERE 1=1";
   const params: (string | number)[] = [];
 
   if (cursor) {
-    sql += ' AND createdAt < ?';
+    sql += " AND createdAt < ?";
     params.push(cursor);
   }
 
-  sql += ' ORDER BY createdAt DESC LIMIT ?';
+  sql += " ORDER BY createdAt DESC LIMIT ?";
   params.push(limit);
 
   const rows = db.query(sql).all(...params) as Record[];
-  return rows.map(row => transformRecord(row));
+  return rows.map((row) => transformRecord(row));
 }
 
 // // Function to update a record
@@ -320,37 +343,47 @@ export function getMostRecentRecords(limit: number = 100, cursor: string | null 
 // }
 
 // Function to get the most recent records for a specific user
-export function getRecentRecordsByUser(user_did: string, limit: number = 100, cursor: string | null = null): MainRecord[] {
-  let sql = 'SELECT * FROM records WHERE author_did = ?';
+export function getRecentRecordsByUser(
+  user_did: string,
+  limit: number = 100,
+  cursor: string | null = null
+): MainRecord[] {
+  let sql = "SELECT * FROM records WHERE author_did = ?";
   const params: (string | number)[] = [user_did];
 
   if (cursor) {
-    sql += ' AND createdAt < ?';
+    sql += " AND createdAt < ?";
     params.push(cursor);
   }
 
-  sql += ' ORDER BY createdAt DESC LIMIT ?';
+  sql += " ORDER BY createdAt DESC LIMIT ?";
   params.push(limit);
 
   const rows = db.query(sql).all(...params) as Record[];
-  return rows.map(row => transformRecord(row));
+  return rows.map((row) => transformRecord(row));
 }
 
 // Function to get the most recent records for a specific item ref and value with pagination
-export function getRecentRecordsByItemRef(item_ref: string, item_value: string, limit: number = 100, cursor: string | null = null): MainRecord[] {
-  let sql = 'SELECT * FROM records WHERE record_item_ref = ? AND record_item_value = ?';
+export function getRecentRecordsByItemRef(
+  item_ref: string,
+  item_value: string,
+  limit: number = 100,
+  cursor: string | null = null
+): MainRecord[] {
+  let sql =
+    "SELECT * FROM records WHERE record_item_ref = ? AND record_item_value = ?";
   const params: (string | number)[] = [item_ref, item_value];
 
   if (cursor) {
-    sql += ' AND createdAt < ?';
+    sql += " AND createdAt < ?";
     params.push(cursor);
   }
 
-  sql += ' ORDER BY createdAt DESC LIMIT ?';
+  sql += " ORDER BY createdAt DESC LIMIT ?";
   params.push(limit);
 
   const rows = db.query(sql).all(...params) as Record[];
-  return rows.map(row => transformRecord(row));
+  return rows.map((row) => transformRecord(row));
 }
 
 // Function to delete a record
@@ -360,19 +393,24 @@ export function getRecentRecordsByItemRef(item_ref: string, item_value: string, 
 // }
 
 export function deleteAllByUser(user_did: string): void {
-  const sql = 'DELETE FROM records WHERE author_did = ?';
+  const sql = "DELETE FROM records WHERE author_did = ?";
   db.query(sql).run(user_did);
 }
 
+export function deleteRecord(uri: string): void {
+  const sql = "DELETE FROM records WHERE uri = ?";
+  db.query(sql).run(uri);
+}
+
 export function deleteAllRecords(): void {
-  const sql = 'DELETE FROM records';
+  const sql = "DELETE FROM records";
   db.query(sql).run();
 }
 
 export function recreateTables() {
-  db.run('DROP TABLE IF EXISTS records');
-  db.run('DROP TABLE IF EXISTS latest_indexedAt');
-  db.run('DROP TABLE IF EXISTS likes');
+  db.run("DROP TABLE IF EXISTS records");
+  db.run("DROP TABLE IF EXISTS latest_indexedAt");
+  db.run("DROP TABLE IF EXISTS likes");
 
   // create the tables again
   createTables();
@@ -381,17 +419,20 @@ export function recreateTables() {
 export async function backfillUserIfNecessary(did: string): Promise<void> {
   // check if at least one record exists for this user
   const records = getRecentRecordsByUser(did, 1);
-  if(records.length !== 0) return;
+  if (records.length !== 0) return;
 
   const items = await getAllRated({ did });
   const profile = await getProfile({ did });
-  
-  for(const item of items) {
-    if(item.value.item.ref !== 'tmdb:s' && item.value.item.ref !== 'tmdb:m') {
+
+  for (const item of items) {
+    if (item.value.item.ref !== "tmdb:s" && item.value.item.ref !== "tmdb:m") {
       continue;
     }
 
-    const metadata = await getFormattedDetails(item.value.item.value, item.value.item.ref);
+    const metadata = await getFormattedDetails(
+      item.value.item.value,
+      item.value.item.ref
+    );
 
     createRecord({
       uri: item.uri,
@@ -402,36 +443,27 @@ export async function backfillUserIfNecessary(did: string): Promise<void> {
         displayName: profile.displayName,
         avatar: profile.avatar,
       },
-      indexedAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
-      createdAt: item.value.note?.createdAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
-      updatedAt: item.value.note?.updatedAt ?? item.value.rating?.createdAt ?? new Date().toISOString(),
+      indexedAt:
+        item.value.note?.createdAt ??
+        item.value.rating?.createdAt ??
+        new Date().toISOString(),
+      createdAt:
+        item.value.note?.createdAt ??
+        item.value.rating?.createdAt ??
+        new Date().toISOString(),
+      updatedAt:
+        item.value.note?.updatedAt ??
+        item.value.rating?.createdAt ??
+        new Date().toISOString(),
       record: {
         $type: item.value.$type,
         item: item.value.item,
         rating: item.value.rating,
         note: item.value.note,
         metadata,
-      }
+      },
     });
   }
-}
-
-export async function saveLikeToDatabase(json: LikeRecord) {
-  // first check if the like already exists
-  const existingLike = db.query('SELECT * FROM likes WHERE author_did = ? AND subject_uri = ?').get(json.author_did, json.subject_uri);
-  if(existingLike) return;
-
-  // check if the record exists
-  const record = getRecord(json.subject_uri);
-  if(!record) return;
-
-  // save the like to the database
-  const sql = 'INSERT INTO likes (uri, author_did, subject_cid, subject_uri, createdAt) VALUES (?, ?, ?, ?, ?)';
-  db.query(sql).run(json.uri, json.author_did, json.subject_cid, json.subject_uri, json.createdAt);
-
-  // update the record with the new like count
-  const newLikes = record.record.likes ? record.record.likes + 1 : 1;
-  db.query('UPDATE records SET record_likes = ? WHERE uri = ?').run(newLikes, json.subject_uri);
 }
 
 export { db, MainRecord };
