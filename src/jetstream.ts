@@ -1,5 +1,4 @@
-
-import WebSocket from 'ws';
+import WebSocket from "ws";
 import {
   backfillUserIfNecessary,
   createRecord,
@@ -62,6 +61,14 @@ function startWebSocket(cursor: number) {
 
     if (
       json.kind === "commit" &&
+      json.commit.operation === "update" &&
+      json.commit.collection === "my.skylights.rel"
+    ) {
+      saveRatingToDatabase(json, true);
+    }
+
+    if (
+      json.kind === "commit" &&
       json.commit.collection === "community.lexicon.interaction.like" &&
       json.commit.operation === "create"
     ) {
@@ -90,7 +97,8 @@ function startWebSocket(cursor: number) {
   };
 }
 
-async function saveRatingToDatabase(json: any) {
+async function saveRatingToDatabase(json: any, update: boolean = false) {
+  console.log(JSON.stringify(json, null, 2));
   if (
     json.commit.record.item.ref !== "tmdb:s" &&
     json.commit.record.item.ref !== "tmdb:m"
@@ -153,7 +161,7 @@ async function saveRatingToDatabase(json: any) {
     };
   }
   try {
-    createRecord(record);
+    createRecord(record, update);
   } catch (e: any) {
     if (e.code === "SQLITE_CONSTRAINT_PRIMARYKEY") {
       console.log("not saving record, already exists", record.uri);
@@ -215,4 +223,4 @@ export async function startJetstream() {
   printTimestamp(currentTimestamp);
 
   startWebSocket(currentTimestamp);
-} 
+}

@@ -210,9 +210,12 @@ export function getAuthorDids(): string[] {
   return rows.map((row) => row.author_did);
 }
 
-export function createRecord(record: MainRecord): void {
+export function createRecord(
+  record: MainRecord,
+  override: boolean = false
+): void {
   const sql = `
-    INSERT INTO records (
+    INSERT ${override ? "OR REPLACE" : ""} INTO records (
       uri, cid, 
       
       author_did, author_handle, author_displayName, author_avatar, 
