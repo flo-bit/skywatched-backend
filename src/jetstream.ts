@@ -212,7 +212,7 @@ export async function startJetstream() {
   const nowMS = Date.now();
   const oneMinuteAgoMS = nowMS - 1 * 60 * 1000;
 
-  recreateTables();
+  // recreateTables();
 
   let lastTimestamp = await getLatestTimestamp();
   console.log("Last timestamp:", lastTimestamp);
