@@ -1,4 +1,5 @@
 // server.ts
+import { processItemsApiCall } from "./api/items";
 import { processLikesApiCall } from "./api/likes";
 import {
   backfillUserIfNecessary,
@@ -123,6 +124,16 @@ export const handler = async (req: Request): Promise<Response> => {
     }
   }
 
+  if (path.startsWith("/api/items")) {
+    const response = await processItemsApiCall({
+      method,
+      path,
+      request: req,
+      url,
+    });
+    if (response) return response;
+  }
+
   if (path.startsWith("/api/likes")) {
     const response = await processLikesApiCall({
       method,
@@ -130,13 +141,8 @@ export const handler = async (req: Request): Promise<Response> => {
       request: req,
       url,
     });
-    return (
-      response ??
-      new Response(JSON.stringify({ error: "Not Found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
+
+    if (response) return response;
   }
 
   // Handle 404 Not Found

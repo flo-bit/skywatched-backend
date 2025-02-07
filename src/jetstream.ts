@@ -150,6 +150,9 @@ async function saveRatingToDatabase(json: any, update: boolean = false) {
         value: json.commit.record.rating.value,
         createdAt: json.commit.record.rating.createdAt,
       },
+      crosspost: {
+        uri: json.commit.record.crosspost?.uri,
+      },
     },
   };
 
@@ -209,7 +212,7 @@ export async function startJetstream() {
   const nowMS = Date.now();
   const oneMinuteAgoMS = nowMS - 1 * 60 * 1000;
 
-  //   recreateTables();
+  recreateTables();
 
   let lastTimestamp = await getLatestTimestamp();
   console.log("Last timestamp:", lastTimestamp);

@@ -8,7 +8,24 @@ type LikeRecord = {
   createdAt: string;
 };
 
-export async function saveLikeToDatabase(json: LikeRecord) {
+export function createLikesTable() {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS likes (
+      uri TEXT PRIMARY KEY,
+      author_did TEXT NOT NULL,
+      subject_cid TEXT NOT NULL,
+      subject_uri TEXT NOT NULL,
+      createdAt TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_uri ON likes (uri);
+    CREATE INDEX IF NOT EXISTS idx_author_did ON likes (author_did);
+    CREATE INDEX IF NOT EXISTS idx_subject_uri ON likes (subject_uri);
+    CREATE INDEX IF NOT EXISTS idx_createdAt ON likes (createdAt);
+  `);
+}
+
+export function saveLikeToDatabase(json: LikeRecord) {
   // first check if the like already exists
   const existingLike = db
     .query("SELECT * FROM likes WHERE author_did = ? AND subject_uri = ?")
@@ -38,11 +55,11 @@ export async function saveLikeToDatabase(json: LikeRecord) {
   );
 }
 
-export async function deleteLikeFromDatabase(json: LikeRecord) {
+export function deleteLikeFromDatabase(json: LikeRecord) {
   db.query("DELETE FROM likes WHERE uri = ?").run(json.uri);
 }
 
-export async function getLikesByUser(did: string) {
+export function getLikesByUser(did: string) {
   return db
     .query(
       "SELECT * FROM likes WHERE author_did = ? ORDER BY createdAt DESC LIMIT 100"
@@ -50,7 +67,7 @@ export async function getLikesByUser(did: string) {
     .all(did);
 }
 
-export async function getAllUsersWithLikes() {
+export function getAllUsersWithLikes() {
   return db
     .query("SELECT DISTINCT author_did FROM likes")
     .all()

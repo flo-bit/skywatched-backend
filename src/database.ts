@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { Database, SQLQueryBindings } from 'bun:sqlite';
 import { getFormattedDetails } from './tmdb';
 import { getAllRated, getProfile } from './atp';
+import { createLikesTable } from "./db/likes";
 
 const litefsDir = process.env.NODE_ENV === 'production' ? '/var/lib/litefs' : './litefs';
 const litefsPath = join(litefsDir, 'db.sqlite');
@@ -165,20 +166,7 @@ function createTables() {
     CREATE INDEX IF NOT EXISTS idx_indexedAt ON latest_indexedAt (indexedAt);
   `);
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS likes (
-      uri TEXT PRIMARY KEY,
-      author_did TEXT NOT NULL,
-      subject_cid TEXT NOT NULL,
-      subject_uri TEXT NOT NULL,
-      createdAt TEXT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_uri ON likes (uri);
-    CREATE INDEX IF NOT EXISTS idx_author_did ON likes (author_did);
-    CREATE INDEX IF NOT EXISTS idx_subject_uri ON likes (subject_uri);
-    CREATE INDEX IF NOT EXISTS idx_createdAt ON likes (createdAt);
-  `);
+  createLikesTable();
 }
 
 // Function to get the latest timestamp (either creation or update)
