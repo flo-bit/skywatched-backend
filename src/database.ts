@@ -301,6 +301,14 @@ export function transformRecord(record: Record): MainRecord {
         release_date: record.record_metadata_release_date ?? "",
       },
       likes: record.record_likes ?? 0,
+      crosspost: record.record_crosspost_uri
+        ? {
+            uri: record.record_crosspost_uri,
+            likes: record.record_crosspost_likes ?? 0,
+            reposts: record.record_crosspost_reposts ?? 0,
+            replies: record.record_crosspost_replies ?? 0,
+          }
+        : undefined,
     },
   };
 }
